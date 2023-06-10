@@ -18,5 +18,4 @@ eefAnalytics \
 pwr \
 lsr \
 Gmisc \
-glue \
-grid
+glue
