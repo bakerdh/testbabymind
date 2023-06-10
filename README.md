@@ -1,2 +1,2 @@
 # testbabymind
-Test for baby mind paper
+Test deployment for baby mind paper

@@ -1,0 +1,1057 @@
+---
+title: "A Smartphone App Effectively Facilitates Mothers’ Mind-Mindedness: A Randomized Controlled Trial"
+author: "Meins, E. et al."
+output:
+  bookdown::pdf_document2:
+    toc: false
+  pdf_document: default
+  html_document: default
+header-includes:
+  - \usepackage{indentfirst}
+indent: true
+bibliography: references.bib
+csl: apa-6th-edition.csl
+link-citations: true
+linkcolor: black
+---
+
+```{r setup, include=FALSE}
+
+packagelist <- c('lmtest','compute.es','mice','ivreg','eefAnalytics','pwr','lsr','knitr','kableExtra','rstatix','rmarkdown','bookdown', 'Gmisc', 'glue', 'grid')
+missingpackages <- packagelist[!packagelist %in% installed.packages()[,1]]
+if (length(missingpackages)>0){install.packages(missingpackages)}
+toinstall <- packagelist[which(!packagelist %in% (.packages()))]
+invisible(lapply(toinstall,library,character.only=TRUE))
+
+knitr::opts_chunk$set(echo = FALSE, 
+                      warning = FALSE,
+                      message = FALSE)
+
+```
+
+```{r data summary, include=FALSE}
+
+data <- read.csv('main_rand_date.csv')
+
+# add in an extra row for the participant who withdrew their data
+data[152,1] <- 0
+
+table(data$treatmentpn)
+
+tapply(data$matage,data$treatmentpn,summary)
+tapply(data$matage,data$treatmentpn,sd,na.rm=TRUE)
+summary(data$matage)
+sd(data$matage,na.rm=TRUE)
+
+tapply(data$baby_age_weeks,data$treatmentpn,summary)
+tapply(data$baby_age_weeks,data$treatmentpn,sd,na.rm=TRUE)
+summary(data$baby_age_weeks)
+sd(data$baby_age_weeks,na.rm=TRUE)
+
+tapply(data$matedu_phase2,data$treatmentpn,table)
+tapply(data$numberofchildrenborn_phase2,data$treatmentpn,table)
+
+tapply(data$temperament,data$treatmentpn,summary)
+tapply(data$temperament,data$treatmentpn,sd,na.rm=TRUE)
+summary(data$temperament)
+sd(data$temperament,na.rm=TRUE)
+
+tapply(data$pdirffinal,data$treatmentpn,summary)
+tapply(data$pdirffinal,data$treatmentpn,sd,na.rm=TRUE)
+summary(data$pdirffinal)
+sd(data$pdirffinal,na.rm=TRUE)
+
+tapply(data$apppercent6,data$treatmentpn,summary)
+tapply(data$apppercent6,data$treatmentpn,sd,na.rm=TRUE)
+summary(data$apppercent6)
+sd(data$apppercent6,na.rm=TRUE)
+
+tapply(data$napercent6,data$treatmentpn,summary)
+tapply(data$napercent6,data$treatmentpn,sd,na.rm=TRUE)
+summary(data$napercent6)
+sd(data$napercent6,na.rm=TRUE)
+
+tapply(data$hadstotal_phase2,data$treatmentpn,summary)
+tapply(data$hadstotal_phase2,data$treatmentpn,sd,na.rm=TRUE)
+summary(data$hadstotal_phase2)
+sd(data$hadstotal_phase2,na.rm=TRUE)
+
+tapply(data$socsupport_phase2,data$treatmentpn,summary)
+tapply(data$socsupport_phase2,data$treatmentpn,sd,na.rm=TRUE)
+summary(data$socsupport_phase2)
+sd(data$socsupport_phase2,na.rm=TRUE)
+
+
+table2out <- tapply(data$usage,data$treatmentpn,table)
+usageNA <- data$usage
+usageNA[which(is.na(usageNA))] <- 4
+tapply(usageNA,data$treatmentpn,table)
+
+
+tapply(data$apppercent12,data$treatmentpn,summary)
+tapply(data$apppercent12,data$treatmentpn,sd,na.rm=TRUE)
+summary(data$apppercent12)
+sd(data$apppercent12,na.rm=TRUE)
+
+tapply(data$napercent12,data$treatmentpn,summary)
+tapply(data$napercent12,data$treatmentpn,sd,na.rm=TRUE)
+summary(data$napercent12)
+sd(data$napercent12,na.rm=TRUE)
+
+```
+
+```{r regression and cace, include=FALSE}
+
+table4t1 <- t.test(apppercent12 ~ treatmentpn, data=data, var.equal = TRUE)
+
+table4t2 <- t.test(napercent12 ~ treatmentpn, data=data, var.equal = TRUE)
+
+linreg1 <- lm(apppercent12 ~ treatmentpn + pdirffinal + apppercent6 + napercent6, data=data)
+summary(linreg1)
+
+linreg2 <- lm(napercent12 ~ treatmentpn + pdirffinal + apppercent6 + napercent6, data=data)
+summary(linreg2)
+
+# check which observations were included in the last regression model
+esample <- as.numeric(rownames(as.matrix(resid(linreg2))))
+model_inc <- (1:nrow(data))*0
+model_inc[esample] <- 1
+data$model_inc <- model_inc
+
+subgroup1 <- data[which(!is.na(data$napercent12)),]
+table(subgroup1[,c(21,5)])
+
+subgroup2 <- subgroup1[which(subgroup1$model_inc==1),]
+subgroup2$pdirffinal[which(is.na(subgroup2$pdirffinal))] <- 0
+
+linreg3 <- lm(apppercent12 ~ factor(treatmentpn) * pdirffinal + apppercent6 + napercent6, data=subgroup2)
+summary(linreg3)
+
+linreg4 <- lm(apppercent12 ~ factor(treatmentpn) + pdirffinal + apppercent6 + napercent6, data=subgroup2)
+summary(linreg4)
+
+lrstat1 <- lrtest(linreg4,linreg3)[2,5]
+
+linreg5 <- lm(napercent12 ~ factor(treatmentpn) * pdirffinal + apppercent6 + napercent6, data=subgroup2)
+summary(linreg5)
+
+linreg6 <- lm(napercent12 ~ factor(treatmentpn) + pdirffinal + apppercent6 + napercent6, data=subgroup2)
+summary(linreg6)
+
+lrstat2 <- lrtest(linreg6,linreg5)[2,5]
+
+
+#CACE analysis
+comp <- 0*(1:nrow(subgroup2))
+comp[which(subgroup2$treatmentpn==0 & !is.na(subgroup2$usage))] <- 0
+comp[which(subgroup2$treatmentpn==1 & subgroup2$usage>1)] <- 1
+comp[which(subgroup2$treatmentpn==1 & subgroup2$usage<2)] <- 0
+comp[which(is.na(subgroup2$usage))] <- NA
+table(comp,subgroup2$treatmentpn)
+subgroup2$comp <- comp
+
+cacedata <- subgroup2[which(subgroup2$comp == subgroup2$treatmentpn),]
+
+ivout <- ivreg(apppercent12 ~ comp + pdirffinal + apppercent6 + napercent6 | comp + pdirffinal + apppercent6 + napercent6 + treatmentpn, data=cacedata, method='OLS')
+cace1 <- summary(ivout)
+cace1CI <- confint(ivout)
+
+ivout <- ivreg(napercent12 ~ comp + pdirffinal + apppercent6 + napercent6 | comp + pdirffinal + apppercent6 + napercent6 + treatmentpn, data=cacedata, method='OLS')
+cace2 <- summary(ivout)
+cace2CI <- confint(ivout)
+
+# caceregress <- lm(apppercent12 ~ pdirffinal + apppercent6 + napercent6 + comp, data=cacedata)
+# summary(caceregress)
+# confint(caceregress)
+# 
+# caceoutput <- caceSRTBoot(apppercent12 ~ pdirffinal + apppercent6 + napercent6, intervention = 'treatmentpn', compliance='comp', nBoot=1000, data=data)
+
+
+# multiple imputation - this is slightly different from in Stata, but produces broadly similar results
+    datatoimpute <- data[,c(10,11,8,12,17,16,18,4,13,14,5,3,6,7)]
+    ini <- mice(datatoimpute, maxit = 0)
+    nmissing <- ini$nmis
+    predMat <- make.predictorMatrix(datatoimpute)
+    predMat[,11:14] <- 0
+    imputeddata <- mice(datatoimpute,m=100,maxit=1,method='mean',predictorMatrix=predMat,seed=1835414)
+    datatoimpute <- complete(imputeddata)
+
+    datatoimpute[which(datatoimpute[,13]==0),13] <- NA
+    datatoimpute[which(datatoimpute[,14]==0),14] <- NA
+    predMat <- make.predictorMatrix(datatoimpute)
+    predMat[1:12,] <- 0
+    predMat[,13:14] <- 0
+    imputeddata <- mice(datatoimpute,m=100,maxit=1,method='norm.predict',predictorMatrix=predMat,seed=1835414)
+    Idata <- complete(imputeddata)
+
+    linreg7 <- lm(apppercent12 ~ factor(treatmentpn), data=Idata)
+    summary(linreg7)
+    conflinreg7 <- confint(linreg7)
+
+fit <- with(imputeddata, lm(apppercent12 ~ factor(treatmentpn)))
+summary(mice::pool(fit))
+
+linreg8 <- lm(apppercent12 ~ factor(treatmentpn) + pdirffinal + apppercent6 + napercent6, data=Idata)
+summary(linreg8)
+confint(linreg8)
+
+fit <- with(imputeddata, lm(apppercent12 ~ factor(treatmentpn) + pdirffinal + apppercent6 + napercent6))
+summary(mice::pool(fit))
+
+linreg9 <- lm(napercent12 ~ factor(treatmentpn), data=Idata)
+summary(linreg9)
+conflinreg9 <- confint(linreg9)
+
+linreg10 <- lm(napercent12 ~ factor(treatmentpn) + pdirffinal + apppercent6 + napercent6, data=Idata)
+summary(linreg10)
+confint(linreg10)
+
+```
+
+```{r descriptives and t-tests, include=FALSE}
+
+means <- tapply(data$apppercent12,data$treatmentpn,mean,na.rm=TRUE)
+SDs <- tapply(data$apppercent12,data$treatmentpn,sd,na.rm=TRUE)
+N <- table(data$treatmentpn[which(!is.na(data$apppercent12))])
+numerator <- ((N[1] - 1)*SDs[1]^2) + ((N[2] - 1)*SDs[2]^2)
+denominator <- sum(N) - 2
+sd_pooled_app <- sqrt(numerator/denominator)
+
+table4SD1 <- SDs
+
+t.test(apppercent12 ~ treatmentpn, data=data, var.equal = TRUE)
+tab4ES1 <- mes(means[1],means[2],SDs[1],SDs[2],N[1],N[2])
+
+means <- tapply(data$napercent12,data$treatmentpn,mean,na.rm=TRUE)
+SDs <- tapply(data$napercent12,data$treatmentpn,sd,na.rm=TRUE)
+N <- table(data$treatmentpn[which(!is.na(data$napercent12))])
+numerator <- ((N[1] - 1)*SDs[1]^2) + ((N[2] - 1)*SDs[2]^2)
+denominator <- sum(N) - 2
+sd_pooled_na <- sqrt(numerator/denominator)
+
+table4SD2 <- SDs
+
+t.test(napercent12 ~ treatmentpn, data=data, var.equal = TRUE)
+tab4ES2 <- mes(means[1],means[2],SDs[1],SDs[2],N[1],N[2])
+
+CIlr1 <- confint(linreg1)
+est_stan1 <- linreg1$coefficients[2]/sd_pooled_app
+low_stan1 <- CIlr1[2,1]/sd_pooled_app
+up_stan1 <- CIlr1[2,2]/sd_pooled_app
+
+CIlr2 <- confint(linreg2)
+est_stan2 <- linreg2$coefficients[2]/sd_pooled_na
+low_stan2 <- CIlr2[2,1]/sd_pooled_na
+up_stan2 <- CIlr2[2,2]/sd_pooled_na
+
+subgroup3 <- data[which(data$treatmentpn==1),]
+ttestSG3 <- t.test(subgroup3$apppercent12, subgroup3$apppercent6, paired=TRUE)
+# SG3_d <- cohensD(subgroup3$apppercent12, subgroup3$apppercent6, method = "paired")
+
+subgroup3a <- subgroup3[which(!is.na(subgroup3[,6])),c(6,13)]
+app_diff_1 <- subgroup3a$apppercent12 - subgroup3a$apppercent6
+SG3mean <- mean(app_diff_1,na.rm=TRUE)
+SG3sd <- sd(app_diff_1,na.rm=TRUE)
+SG3d <- SG3mean/SG3sd
+
+dlist <- NULL
+for (n in 1:10000){
+  rsdata <- sample(app_diff_1,replace=TRUE)
+  dlist[n] <- mean(rsdata)/sd(rsdata)
+}
+SG3CI <- quantile(dlist,c(0.025,0.975))
+
+subgroup4 <- data[which(data$treatmentpn==0),]
+subgroup4a <- subgroup4[which(!is.na(subgroup4[,6])),c(6,13)]
+ttestSG4 <- t.test(subgroup4$apppercent6, subgroup4$apppercent12, paired=TRUE)
+SG4_d <- cohensD(subgroup4$apppercent6, subgroup4$apppercent12, method = "paired")
+app_diff_0 <- subgroup4a$apppercent12 - subgroup4a$apppercent6
+sd(app_diff_0,na.rm=TRUE)
+
+SG4mean <- abs(mean(app_diff_0,na.rm=TRUE))
+SG4sd <- sd(app_diff_0,na.rm=TRUE)
+SG4d <- SG4mean/SG4sd
+
+dlist <- NULL
+for (n in 1:10000){
+  rsdata <- sample(app_diff_0,replace=TRUE)
+  dlist[n] <- abs(mean(rsdata))/sd(rsdata)
+}
+SG4CI <- quantile(dlist,c(0.025,0.975))
+
+
+subgroup5 <- data[which(data$treatmentpn==1),]
+subgroup5a <- subgroup5[which(!is.na(subgroup5[,7])),c(7,14)]
+ttestSG5 <- t.test(subgroup5$napercent6, subgroup5$napercent12, paired=TRUE)
+SG5_d <- cohensD(subgroup5$napercent6, subgroup5$napercent12, method = "paired")
+na_diff_1 <- subgroup5a$napercent12 - subgroup5a$napercent6
+sd(na_diff_1,na.rm=TRUE)
+
+SG5mean <- abs(mean(na_diff_1,na.rm=TRUE))
+SG5sd <- sd(na_diff_1,na.rm=TRUE)
+SG5d <- SG5mean/SG5sd
+
+dlist <- NULL
+for (n in 1:10000){
+  rsdata <- sample(na_diff_1,replace=TRUE)
+  dlist[n] <- abs(mean(rsdata))/sd(rsdata)
+}
+SG5CI <- quantile(dlist,c(0.025,0.975))
+
+
+subgroup6 <- data[which(data$treatmentpn==0),]
+subgroup6a <- subgroup6[which(!is.na(subgroup6[,7])),c(7,14)]
+ttestSG6 <- t.test(subgroup6$napercent6, subgroup6$napercent12, paired=TRUE)
+SG6_d <- cohensD(subgroup6$napercent6, subgroup6$napercent12, method = "paired")
+na_diff_0 <- subgroup6a$napercent12 - subgroup6a$napercent6
+sd(na_diff_0,na.rm=TRUE)
+
+SG6mean <- abs(mean(na_diff_0,na.rm=TRUE))
+SG6sd <- sd(na_diff_0,na.rm=TRUE)
+SG6d <- SG6mean/SG6sd
+
+dlist <- NULL
+for (n in 1:10000){
+  rsdata <- sample(na_diff_0,replace=TRUE)
+  dlist[n] <- abs(mean(rsdata))/sd(rsdata)
+}
+SG6CI <- quantile(dlist,c(0.025,0.975))
+
+
+
+years <- format(as.Date(data$daterandom, format="%d/%m/%Y"),"%Y")
+table(years)
+months <- format(as.Date(data$daterandom, format="%d/%m/%Y"),"%m")
+dates <- data.frame(months,years)
+table(dates)
+
+quarters <- (1:length(years))*0
+quarters[which(years=='2014')] <- 1
+quarters[which(years=='2015' & as.numeric(months)<4)] <- 2
+quarters[which(years=='2015' & as.numeric(months)>3 & as.numeric(months)<7)] <- 3
+quarters[which(years=='2015' & as.numeric(months)>6 & as.numeric(months)<10)] <- 4
+quarters[which(years=='2015' & as.numeric(months)>9 & as.numeric(months)<13)] <- 5
+quarters[which(years=='2016' & as.numeric(months)<4)] <- 6
+quarters[which(years=='2016' & as.numeric(months)>3 & as.numeric(months)<7)] <- 7
+quarters[which(years=='2016' & as.numeric(months)>6 & as.numeric(months)<10)] <- 8
+
+table(quarters)
+
+data$quarter <- as.factor(quarters)
+
+subgroup1 <- data[which(!is.na(data$napercent12)),]
+subgroup2 <- subgroup1[which(subgroup1$model_inc==1),]
+subgroup2$pdirffinal[which(is.na(subgroup2$pdirffinal))] <- 0
+
+linreg7_adjust <- lm(apppercent12 ~ treatmentpn + pdirffinal + quarter + apppercent6 + napercent6, data=subgroup2)
+summary(linreg7_adjust)
+
+conflinreg7adj <- confint(linreg7_adjust)
+
+linreg9_adjust <- lm(napercent12 ~ treatmentpn + pdirffinal + quarter + apppercent6 + napercent6, data=subgroup2)
+summary(linreg9_adjust)
+
+conflinreg9adj <- confint(linreg9_adjust)
+
+```
+
+```{r power analysis, include = FALSE}
+
+pwr1 <- pwr.r.test(r = 0.3, power = 0.8, sig.level = .05, alternative = "greater")
+
+```
+
+# Abstract
+
+The efficacy of a smartphone app intervention (BabyMind$\copyright$) in facilitating mind-mindedness was investigated in a randomized controlled trial, assigning mothers and their 6-month-olds (N=`r nrow(data)`; `r table(data$baby_gender)[1]` girls, 146 White) to intervention or active control conditions. Mothers who had received the app intervention scored higher for appropriate (*d* = `r p_format(est_stan1,leading.zero=FALSE)`, 95% CI `r p_format(low_stan1,leading.zero=FALSE)`, `r p_format(up_stan1,leading.zero=FALSE)`) and lower for non-attuned (*d* = `r p_format(abs(est_stan2),leading.zero=FALSE)`, 95% CI `r p_format(abs(up_stan2),leading.zero=FALSE)`, `r p_format(abs(low_stan2),leading.zero=FALSE)`) mind-related comments at follow-up (age 12 months), compared with their control group counterparts. Adjusting for missing data did not alter this pattern of findings. Mothers’ baseline parental reflective functioning did not moderate these relations. Results are discussed in terms of the benefits of early intervention and exploring the efficacy of the app in more diverse populations.
+
+# Introduction
+
+Research over the last 25 years has shown that caregivers’ mind-mindedness [@Meins1997] predicts various positive aspects of child development [see @Aldrich2021; and @McMahon2017, for reviews]. Mind-mindedness is defined as the caregiver’s tendency to treat the young child as an individual with a mind of their own, and is operationalized in infancy in terms of caregivers’ comments about their infants’ thoughts and feelings. Mind-minded caregivers tend to comment appropriately on the infant’s internal states (appropriate mind-related comments) rather than misinterpreting what the infant is thinking or feeling (non-attuned mind-related comments) [@Meins2001; @Meins2012]. Higher levels of mind-mindedness are associated with secure attachment [e.g., @Lundy2003; @Meins2018; @Meins2001; @Meins2012], and children’s own understanding of other minds in the preschool years [e.g., @Centifanti2016; @Fishburn2022; @Kirk2015; @Laranjo2010; @Laranjo2014]. In children from socially and economically disadvantaged backgrounds, mind-mindedness in the first year of life is reported to predict fewer behavioral difficulties in the preschool years and the first year of school [@Meins2013] and higher attainment in standardized school assessments at ages 7 and 11 [@Meins2019].
+
+There is no convincing evidence for a relation between mind-mindedness and caregivers’ socioeconomic status [@Bigelow2015; @Laranjo2013; @McMahon2016; @Meins2011], but mind-mindedness has been reported to relate to other  caregiver characteristics. Although mothers’ mental health is unrelated to mind-mindedness in community samples [e.g., @Crucianelli2019; @Meins2011], severe mental illness appears to impair mind-mindedness. @Schacht2017 investigated mind-mindedness in mothers hospitalized for severe mental illness on a specialist mother and baby unit. They reported that mothers with severe mental illness were less mind-minded than a psychologically well group of mothers, with evidence for an association between severe mental illness and markedly higher levels of non-attuned mind-related comments. Young motherhood has also been found to relate to lower levels of mind-mindedness. For example, @Demers2010 reported that teenage and younger mothers made fewer appropriate mind-related comments than their older counterparts. @Larkin2019 also found evidence for lower levels of appropriate mind-related comments in younger versus older mothers, but this study reported that age was not associated with mothers’ non-attuned comments.
+	
+## Interventions to Facilitate Mind-Mindedness
+
+Due to the positive associations in the extant literature between mind-mindedness and children’s outcomes, researchers have devised intervention procedures in order to attempt to facilitate caregivers’ mind-mindedness. The first of these interventions used video-feedback to help caregivers to comment more appropriately on their children’s internal states. Colonnesi et al.’s [-@Colonnesi2012] intervention focused on adoptive parents and their children, and was associated with a decrease in insecure attachment. @Schacht2017 used a video-feedback mind-mindedness intervention with their sample of mothers hospitalized for severe mental illness. They reported that, compared to mothers who had received video-feedback targeted at encouraging them to talk to their infants and follow their gaze, those who had received the mind-mindedness intervention showed a highly significant decrease in non-attuned mind-related comments and a marginally significant increase in appropriate comments from admission to discharge. Moreover, the mothers who had received the intervention were not significantly different from psychologically well controls in terms of either appropriate or non-attuned comments at discharge. At follow-up in the second year of life, mothers who had received the intervention were also more likely to have secure attachment relationships with their infants compared with the comparison group of mothers who had also been hospitalized for severe mental illness.
+	
+@Larkin2019 investigated whether it was possible to facilitate mind-mindedness using an intervention that was less labor-intensive than the individually-delivered video-feedback procedures that had proved effective in previous research. They developed a smartphone app that provided caregivers with psychoeducation on early infant development and sent a daily alert prompting the caregiver to consider what was “on their infant’s mind”. In response to these alerts, the caregiver could post photographs or video clips to indicate how the infant was feeling or what they were thinking, with the research team providing feedback to facilitate mind-mindedness. For example, if a post did not mention the infant’s internal state (e.g., “We’re having breakfast”), the feedback would prompt the caregiver to consider the event in light of the infant’s internal states (e.g., “What does [name] like most for breakfast?”), reply in the first person from the infant’s perspective (e.g., “That’s yummy!”), or model the use of mental states (e.g., “Looks like they really like that yogurt!”). 
+	
+The app was administered to a community sample of mothers who were recruited in the last trimester of pregnancy and began using the app as soon as the infant was born. These dyads were followed up when the infants were 6 months of age, at which point mothers’ mind-mindedness was assessed from a laboratory free-play mother–infant interaction. Mind-mindedness in the intervention group was compared with that in a control sample of mothers who were recruited when their infants were 6 months and had not received the smartphone app. Compared with the control group, mothers in the intervention group produced significantly more appropriate mind-related comments and significantly fewer non-attuned comments when interacting with their infants. @Larkin2019 also investigated whether the app was equally effective in facilitating mind-mindedness in younger versus older mothers, given previous research findings indicating that teenage and younger mothers are less mind-minded than their older counterparts [@Demers2010]. The younger mothers who had received the app were more mind-minded than both younger and older mothers in the control group, suggesting that the app mitigated the impact of early motherhood on mind-mindedness. These findings are important because they provide evidence that mind-mindedness can be facilitated remotely using a technique that could be administered to parents on a grand scale. 
+
+The main aim of the present study was to evaluate the efficacy of the app used in Larkin et al.’s [-@Larkin2019] study using a rigorous randomized controlled trial design. We chose to assess mind-mindedness at two time points: baseline (when infants were age 6 months) and follow-up at age 12 months (the age at which the intervention or control procedures terminated). If the app is effective in facilitating mind-mindedness, compared with the control group, intervention group mothers should show higher levels of mind-mindedness at follow-up and an increase in mind-mindedness over time. Recall that there are two indices of mind-mindedness—appropriate and non-attuned mind-related comments—with mind-mindedness being characterized in terms of higher scores for the former and lower scores for the latter. Different predictions would therefore be made regarding the two indices. At follow-up, we expected the intervention group to achieve significantly higher scores for appropriate comments and significantly lower scores for non-attuned comments compared with control group mothers. 
+
+We also hypothesized that there would be a significant increase in appropriate mind-related comments from baseline to follow-up specifically in the intervention group. It was somewhat less straightforward to formulate a prediction regarding change over time for non-attuned comments. Individual differences in mind-mindedness—and perhaps particularly in non-attuned comments—arise in part because of the opacity of young infants’ internal states. For much of the first year, infants are not mobile and cannot talk, and therefore have little agency in demonstrating or expressing their desires, likes, dislikes, thought processes, and so on. But as infants become able to crawl, walk, and talk, it is arguably easier for caregivers to interpret their thoughts and feelings [@Fishburn2022]; non-attuned comments may thus naturally decline over the first year of life. We therefore predicted that both the intervention and control groups would show a decrease in non-attuned comments from baseline to follow-up, but that the decrease would be more marked in the intervention group.
+
+## Factors that may Moderate the Efficacy of Mind-Mindedness Interventions
+
+Previous research has not yet explored factors that may moderate the efficacy of an intervention that aims to facilitate mind-mindedness; we therefore do not know whether some mothers may be more receptive than others to procedures that encourage them to engage with and reflect on their infants’ internal states. Mind-mindedness is one of a number of constructs that fall under the umbrella term *parental mentalization* [see @Zeegers2017]. Aspects of parents’ tendency to engage with their children’s mental lives other than mind-mindedness may make them more able to benefit from the smartphone app. To investigate this possibility, the present study included a measure of parental reflective functioning [PRF\; @Slade2005b] at baseline. While mind-mindedness is assessed from caregivers’ mind-related comments during actual parent–child interaction, PRF is typically measured from analyzing caregivers’ responses to interviews, such as the Parent Development Interview [PDI\; @Aber1985], in which the caregiver talks about themselves in the parenting role and the parent–child relationship. PRF is assessed in terms of the extent to which parents consistently and coherently describe their reflection upon their own and their children’s internal states in the context of parent–child relationships [@Slade2005a]. PRF is scored on an 11-point scale, ranging from bizarre/inappropriate (-1) to high/exceptional (+9). Mothers who demonstrate more sophisticated engagement with and reflection on their infants’ thoughts and feelings may be likely to be receptive to an intervention that encourages them on a daily basis to think about what is on their infant’s mind. Levels of PRF at baseline may therefore moderate the effectiveness of the app in facilitating mind-mindedness.
+
+The present study also included a number of other important variables that may influence the efficacy of the mind-mindedness intervention. Although the existing evidence suggests that mothers’ mental health is unrelated to mind-mindedness unless the mother is diagnosed with severe mental illness [@Crucianelli2019; @Meins2011; @Schacht2017], higher levels of depression or anxiety or low levels of self-esteem or social support may impair the mother’s ability to engage with the app and benefit from the intervention. We therefore evaluated the effectiveness of the mind-mindedness intervention in light of the mothers’ psychological wellbeing. Similarly, while previous research indicates that infant temperament is unrelated to mind-mindedness [@Larkin2019; @Meins2011], having a temperamentally difficult infant may make it more difficult for the mother to benefit from the intervention. The present study therefore assessed infant temperament.  
+
+## Relations between Mind-Mindedness and Parental Reflective Functioning
+
+Although PRF was included primarily to test whether it moderated the efficacy of the app, including this measure enabled us to address a secondary research question: how do mind-mindedness and PRF relate to one another? Although a considerable amount of research has focused on mind-mindedness or PRF, and both constructs assess parental mentalization, studies investigating how the two constructs relate to one another are notable by their absence. Given that both constructs index the caregiver’s tendency to represent the child’s internal states, one might imagine that the two constructs will be robustly related, with PRF correlating positively with appropriate mind-related comments and negatively with non-attuned comments. However, while representing the child’s internal states is necessary for making a mind-related comment, this basic ability to engage with others’ mental states is likely not to be sufficient for being mind-minded. For example, research has shown that parents’ general theory of mind abilities are unrelated to mind-mindedness [@Barreto2015; @Devine2019]. 
+	
+Mind-mindedness is a construct at the interface between representation and behavior: the caregiver must represent the infant’s internal state, but then voice out loud during the interaction their reading of the infant’s thoughts and feelings. Moreover, a unique aspect of mind-mindedness is the fact that it indexes accuracy in caregivers’ representations of their infants’ minds by evaluating the caregiver’s reading of the infant’s internal state with reference to the infant’s ongoing behavior. In contrast, given that PRF is assessed from parents’ interview responses, it is not possible to gauge whether their reflections on the child’s thoughts and feelings accurately index these internal states. Consequently, it may be that PRF and mind-mindedness assess somewhat distinct aspects of parental mentalization, and may therefore not be robustly related. In support of this argument, @Dollberg2022 reported null associations between PRF and both indices of mind-mindedness in the only study to have been published on this topic.
+
+## The Present Study 
+
+The present study reports on the first randomized control trial of an intervention designed to facilitate mind-mindedness. We evaluated the efficacy of the smartphone app used in Larkin et al.’s [-@Larkin2019] study, comparing intervention and control group mothers with regard to post-treatment levels of mind-mindedness and change over time in mind-mindedness. We predicted that, compared with the control group, the intervention group would achieve higher scores for appropriate mind-related comments and lower scores for non-attuned mind-related comments post-treatment. We further hypothesized that (a) appropriate mind-related comments would increase between pre- and post-treatment time points specifically in the intervention group, and (b) both intervention and control groups would show a decrease over time in non-attuned mind-related comments, but this decline would be more marked in the intervention group. These hypotheses were made *a priori*, a power analysis was used to determine sample size, and the primary outcomes were pre-registered; we therefore consider our approach to be confirmatory. The study also explored whether mothers’ baseline PRF moderated the efficacy of the app intervention. Finally, associations between mind-mindedness and PRF were investigated. These analyses involving PRF were exploratory.
+
+# Method
+## Participants
+
+Participants were `r nrow(data)` mothers with infants (`r table(data$baby_gender)[1]` girls) aged around 6 months (*M* = `r round(mean(data$baby_age_weeks,na.rm=TRUE),digits=2)` weeks, *SD* = `r round(sd(data$baby_age_weeks,na.rm=TRUE),digits=2)`, range `r round(min(data$baby_age_weeks,na.rm=TRUE),digits=2)`–`r round(max(data$baby_age_weeks,na.rm=TRUE),digits=2)`), who were recruited between June 2014 and June 2018. Recruitment was partly through local maternity services, whereby clinicians identified suitable candidates and referred them to the study team. The study team also recruited directly within the community (children’s centers, community events, parent–baby groups, social media, and word of mouth). Reflecting the ethnic makeup of the local area, 146 of the mothers were White; 135 were in a relationship with the infant’s father, 14 were single, and 30 were aged 22 or younger. Eligibility criteria were speaking to the infant in English, being aged 15 or older, and owning or having regular access to a smartphone. While the trial was initially designed to recruit only teenage and young mothers up to age 22, the upper age limit was removed 10 months after the study commenced to ensure that adequate numbers were reached to test the efficacy of the intervention. The study was approved by the National Health Service Health Research Authority Research Ethics Committee (REC reference omitted for blind review), and testing was conducted in line with the guidance of the British Psychological Society and American Psychological Association. 
+	
+All participants provided written informed consent to participate. In line with National Health Service guidelines, parental consent was additionally required for participating mothers who were age 15. Participants were paid £20 and travel costs per testing session and received an additional £10 gift voucher if they completed the follow-up session at age 12 months. 
+
+## Materials and methods
+
+**Overview of testing procedures**. Testing took place either in the university laboratory (87%), at a community children’s center or school (11%), or in the participant’s home (1%). At age 6 months, participants completed the mind-mindedness assessment, an infant temperament measure, the PDI (to assess PRF), and questionnaires assessing depression and anxiety, self-esteem, and perceived social support. Mothers also provided demographic information. They indicated which level of education they had completed on a 0–6 scale: primary, secondary with/without qualifications, college with/without qualifications, occupational training, third level course, undergraduate degree, postgraduate degree. They detailed their living arrangements, sources of income, occupation, family composition, and provided information about their mental and physical health. After the testing procedures had been completed, mothers were randomly assigned to the intervention or control group (see below). Mothers and infants returned for the follow-up phase at age 12 months, and completed the mind-mindedness assessment for a second time. At this time point, mothers in both the intervention and control groups provided feedback on how often they had used the designated app according to the following scale: 0 = rarely or never, 1 = a few times a month, 2 = a few times a week, 3 = every day.
+	
+**Mind-mindedness assessment**. The procedure was identical at the 6 and 12 month phases. Mother¬–infant dyads were observed in a 10-minute free-play session. Mothers were instructed to play with the infant as they would do if they had free time together at home. The sessions were later transcribed verbatim and coded for mind-mindedness using Meins and Fernyhough’s [-@Meins2015] criteria, in conjunction with viewing the filmed interaction. Comments in which the mother referred to the infant’s internal state or commented in the first person on the infant’s behalf (mind-related comments) were identified and each was coded dichotomously as appropriate or non-attuned. The former denotes comments where the attributed internal state (a) is consistent with the infant’s behavior at that moment in time (e.g., saying the infant wants a toy if he or she reaches toward it), (b) links the infant’s current internal state with related events in the past or future (e.g., “You’ll want to pet the lambs when we visit the farm tomorrow” while the infant played with a toy lamb), or (c) sought to engage the infant in play after a lull in the interaction (e.g., “You’ll like this rattle”). Comments where mothers voiced in the first person what the infants would be likely to say if they could talk were also coded as appropriate. Non-attuned mind-related comments were where the attributed internal state (a) is inappropriate given the infant’s ongoing behavior or seeks to redirect the infant to a new activity while the infant is actively engaged with a toy (e.g., “You don’t want to play with that anymore”), (b) is unrelated to the infant’s current activity (e.g., “Do you want to go out for lunch?” while the infant is playing with the stacking rings), (c) appears to project the mother’s internal state onto the infant, or (d) has an ambiguous referent.
+
+All of the observations were coded for mind-mindedness by a trained researcher who was blind to all other data, including group allocation, with a randomly-selected 25% of sessions at each phase coded by a second trained, blind researcher. Coding of the follow-up sessions was conducted four years after coding the baseline sessions. Coders were not blind to the main hypothesis of the study (testing the efficacy of the intervention), but were blind to the hypothesized moderating effect of PRF. Inter-rater reliability for coding mind-related comments as appropriate or non-attuned was $\kappa$= .74; disagreements were resolved by discussion.
+
+**PRF assessment**. PRF was assessed from mothers’ responses to the PDI-R2-S [@Slade2004a]. This semi-structured interview explores caregivers’ representations of themselves as a parent, of their child, and of the parent–child relationship. Permission was given by the lead author (Slade, pers comm) to reduce the interview to 20 items by leaving out sections D (Parent’s Family History) and E (Separation and Loss). The interviews were audio recorded and transcribed verbatim. Using the Reflective Functioning Manual [@Fonagy1998] and the Addendum to Reflective Functioning Scoring Manual [@Slade2004b], a trained coder read the transcripts and assigned each an overall score for PRF. PRF is rated on an 11-point continuous scale from -1 (“Negative or Bizarre PRF”) to 9 (“Marked PRF”). A randomly selected subset of the transcripts (N = 21) was coded by a second trained, blind coder in order to measure inter-rater reliability; ICC= .76. Both coders were blind to the hypotheses of the study.
+
+**Infant temperament**. At age 6 months, infants took part in the car seat task from the Infant Laboratory Temperament Assessment Battery [Lab-TAB\; @Goldsmith1996] to assess their temperament. This task has strong ecological validity, as well as good predictive and concurrent validity in measuring temperament when used in isolation from the full LabTAB battery [@Hay2010; @Hay2014]. The mother was asked to strap their infant into a car seat (fixed to an upright chair in front of a camera) without speaking to the infant. The mother was instructed then to stand to the side, slightly behind the car seat (so that the infant could see them by turning their head), and refrain from looking at the infant. Thirty seconds were timed from when the mother closed the buckle of the car seat. 
+
+The filmed 30-second period was later divided into six 5-second epochs, with each coded for the presence and intensity of behaviors indicative of frustration and sadness. A trained researcher who was blind to all other data coded all of the observations, with a second trained, blind rater coding a randomly selected 25%. Both coders were blind to the hypotheses of the study. Inter-rater reliability scores for the ratings were: facial anger: ICC = .74; facial sadness: ICC = .77; distress vocalization: ICC = .85, and physical struggle: ICC = .81. Scores across the epochs were averaged to give mean scores for facial anger, facial sadness, distress vocalization, and physical struggle. Scores for these four scales showed good internal reliability, $\alpha$ = .71. Composite scores were therefore calculated and used in the analyses. Higher scores indicated greater negative affect, distress, and struggle, and index more difficult temperament.
+
+**Questionnaire measures**. Maternal depression and anxiety were assessed using the Hospital Anxiety and Depression Scale [HADS\; @Zigmond1983]. The HADS is a 14-item questionnaire scored on a 4-point Likert scale. It has two subscales: anxiety (HADS-A), and depressive symptoms (HADS-D), which can be summed to give a total HADS score ranging between 0 and 42. A higher score indicates more anxiety/depressive symptoms; internal reliability, $\alpha$ = .79. Total HADS scores were used in the analyses.
+
+Self-esteem was assessed using the Rosenberg Self-Esteem Scale [@Rosenberg1965]. This 10-item self-report questionnaire generates a global measure of self-esteem, with each item rated on a 4-point Likert scale, providing a total score between 0 and 30. Higher scores indicate higher levels of self-esteem; internal reliability, $\alpha$ = .89. 
+
+Perceived social support was assessed using the Multi-dimensional Scale of Perceived Social Support [@Zimet1988]. The 12-item questionnaire focuses on social isolation, loneliness, and whether individuals feel they have someone who can provide psychological support if needed. Items are rated using a 7-point Likert scale, yielding possible scores between 12 and 84, with higher scores indexing higher perceived social support; internal reliability, $\alpha$ = .95.
+
+**Randomization procedure**. Figure \@ref(fig:figure1) shows the CONSORT flow diagram for the enrollment, allocation, and follow-up phases of the study. Participants were randomly allocated to the intervention (*n*=`r table(data$treatmentpn)[2]`) or control group (*n*=`r table(data$treatmentpn)[1]`) using the software Minim, which was programmed to account for maternal age to ensure that both groups contained approximately the same number of younger (19 and younger) and older (over 19) mothers. Randomization occurred on a rolling basis across the recruitment period, with recruitment, randomization, and data collection occurring in parallel. To avoid bias in data collection, a different researcher ran the software and wrote down the designated group while the testing was being completed. The allocated group was given to the researcher conducting the testing in a sealed envelope, which was opened when all of the testing had been completed. The researcher then administered the intervention or control procedure accordingly. 
+
+```{r figure1, fig.width = 10, fig.height = 12, fig.cap='CONSORT flow diagram summarizing the design of the randomized controlled trial.', echo=FALSE}
+
+# make boxes 
+
+# the expressions in {} can be replaced with relative numbers from the data set if available
+
+#Title
+#white box with white frame and 1.5 times font size in bold
+title <- boxGrob(expression(bold("CONSORT 2010 Flow Diagram")),
+                 box_gp = gpar(fill = "white", col = "white"),
+                 txt_gp = gpar(cex = 1.5))
+
+
+#Enrollment (top left)
+enrollment <- boxGrob(glue("Enrollment"),
+                      txt_gp = gpar(col = "darkblue"),
+                      box_gp = gpar (fill = "lightblue", col = "black"),
+                      y = .9,
+                      x = .1,
+                      bjust = c(0))
+
+
+#referred (top)
+referred <- boxGrob(glue("Referred by recruiters (n = {refr})",
+                         "Self-referred to study (n = {refs})",
+                         refr = txtInt(204),
+                         refs = txtInt(46),
+                         .sep = "\n"))
+
+#randomized (under referred)
+randomized <- boxGrob(glue("Randomized (n = {incl})",
+                         incl = txtInt(152)))
+
+
+#excluded (offset left between referred and randomized)
+excluded <- boxGrob(glue("Excluded (n = {pop})",
+                         " - Declined to participate (n = {dec})",
+                         " - Could not contact (n = {cont})",
+                         " - No suitable time (n = {time})",
+                         " - Did not want baby filmed (n = {film})",
+                         " - Did not attend or reschedule (n = {att})",
+                         " - Medical problem (n = {med})",
+                         " - Partner refused (n = {part})",
+                         " - Recruiter issue (n = {recr})",
+                         pop = txtInt(98),
+                         dec = txtInt(10),
+                         cont = txtInt(49),
+                         time = txtInt(13),
+                         film = txtInt(3),
+                         att = txtInt(6),
+                         med = txtInt(5),
+                         part = txtInt(2),
+                         recr = txtInt(10),
+                         .sep = "\n"),
+                    just = "left")
+
+#allocation box (1st middle header)
+allocation <- boxPropGrob(label_left = "Allocation", 
+                          label_right = " (age 6 months)",
+                          prop = .4,
+                          width = unit(58, "mm"),
+                          just = "center",
+                          txt_left_gp = gpar(col = "darkblue"),
+                          txt_right_gp = gpar(col = "red"),
+                          box_left_gp = gpar(fill = "lightblue", col = "black"),
+                          box_right_gp = gpar(fill = "lightblue", col ="black"))
+
+#allocated intervention box
+allocated_left <- boxGrob(glue("Allocated to intervention (n = {all})",
+                               " - Received allocated intervention (n = {int})",
+                               " - Did not receive allocated \n    intervention (n = {noint})",
+                               all = txtInt(74),
+                               int = txtInt(74),
+                               noint = txtInt(0),
+                               .sep = "\n"),
+                          just = "left")
+
+#allocated control box
+allocated_right <- boxGrob(glue("Allocated to control (n = {all})",
+                                " - Received allocated intervention (n = {int})",
+                                " - Did not receive allocated intervention \n    (give reasons) (n = {noint})",
+                                all = txtInt(78),
+                                int = txtInt(78),
+                                noint = txtInt(0),
+                                .sep = "\n"),
+                           just = "left")
+
+
+
+#followup box (2nd middle header)
+followup <- boxPropGrob(label_left = "Follow-Up", 
+                        label_right = " (age 12 months)",
+                        prop = .4,
+                        width = unit(60, "mm"),
+                        just = "center",
+                        txt_left_gp = gpar(col = "darkblue"),
+                        txt_right_gp = gpar(col = "red"),
+                        box_left_gp = gpar(fill = "lightblue", col = "black"),
+                        box_right_gp = gpar(fill = "lightblue", col ="black"))
+
+#follow up box on the left
+followup_left <- boxGrob(glue("Lost to follow-up (could not contact) (n = {cont})",
+                              "Discontinued intervention (too busy,\nnot interested) (n = {busy})",
+                              cont = txtInt(5),
+                              busy = txtInt(3),
+                              .sep = "\n"),
+                         just = "left")
+
+#follow up box on the right
+followup_right <- boxGrob(glue("Lost to follow-up (could not contact) (n = {cont})",
+                               "Discontinued intervention (app \nmalfunctioned, too busy) (n = {busy})",
+                               cont = txtInt(1),
+                               busy = txtInt(3),
+                               .sep = "\n"),
+                          just = "left")
+  
+
+#analysis box (3rd middle header)
+analysis <- boxGrob(glue("Analyis"),
+                    txt_gp = gpar(col = "darkblue"),
+                    box_gp = gpar (fill = "lightblue", col = "black"))
+
+analysis_left <- boxGrob(glue("Included primary analyis:",
+                              "Unadjusted (n = {unadj})",
+                              " - Did not provide outcome data (n = {unadj_no})",
+                              " ",
+                              "Adjusted (n = {adj})",
+                              " - Did not provide outcome data (n = {adj_no})",
+                              " - Provided outcome data, but no baseline \n    PRF data (n = {noPRF})",
+                              unadj = txtInt(66),
+                              unadj_no = txtInt(8),
+                              adj = txtInt(52),
+                              adj_no = txtInt(8),
+                              noPRF = txtInt(14),
+                              .sep = "\n"),
+                         just = "left")
+
+#analysis right box
+analysis_right <- boxGrob(glue("Included primary analyis:",
+                               "Unadjusted (n = {unadj})",
+                               " - Did not provide outcome data (n = {unadj_no})",
+                               " ",
+                               "Adjusted (n = {adj})",
+                               " - Did not provide outcome data (n = {adj_no})",
+                               " - Provided outcome data, but no baseline \n    PRF data (n = {noPRF})",
+                               unadj = txtInt(74),
+                               unadj_no = txtInt(4),
+                               adj = txtInt(61),
+                               adj_no = txtInt(4),
+                               noPRF = txtInt(13),
+                               .sep = "\n"),
+                          just = "left")
+
+
+#create flow chart
+
+#create empty grid space
+# grid.newpage()
+pdf("Figures/Figure1.pdf", bg="transparent", height = 12, width = 10)
+
+#position title
+title <- moveBox(title,
+                 y = .97,
+                 x = .5)
+
+#move boxes that are in the center
+referred <- moveBox(referred,
+                    y = .9)
+
+randomized <- moveBox(randomized,
+                      y = .7)
+
+allocation <- moveBox(allocation,
+                      y = .63)
+
+followup <- moveBox(followup,
+                    y = .38)
+
+analysis <- moveBox(analysis,
+                    y = .20)
+
+
+#store vertical spread of boxes in the center in vert
+vert <- alignHorizontal(reference = referred,
+                        referred, 
+                        randomized,
+                        allocation,
+                        followup, 
+                        analysis,
+                        .position = "center")
+
+
+#move analysis boxes
+analysis_left <- moveBox(analysis_left,
+                         x = .2,
+                         y = .10)
+
+analysis_right <- moveBox(analysis_right,
+                          x = .8,
+                          y = .10)
+
+
+
+
+#move followup boxes
+followup_left <- moveBox(followup_left,
+                         x = .2,
+                         y = .32)
+
+followup_right <- moveBox(followup_right,
+                          x = .8,
+                          y = .32)
+
+
+#move allocation boxes
+allocated_left <- moveBox(allocated_left,
+                          x = .2,
+                          y = .50)
+
+allocated_right <- moveBox(allocated_right,
+                           x = .8,
+                           y = .50)
+
+
+#move box 'excluded' to the left and in-between 'referred' and 'randomized'
+excluded <- moveBox(excluded,
+                    x = .8,
+                    y = coords(randomized)$top + distance(referred, randomized, half = TRUE, center = TRUE))
+
+
+#make the arrows
+
+#arrow between referred and randomized
+connectGrob(referred, randomized, type = "vert")
+
+#create arrow for excluded box (L-shaped from referred)
+connectGrob(referred, excluded, type = "L")
+
+#create arrows from allocation to allocated boxes
+connectGrob(allocation, allocated_left, type = "N")
+
+connectGrob(allocation, allocated_right, type = "N")
+
+#connect left boxes
+connectGrob(allocated_left, followup_left, type = "vert")
+connectGrob(followup_left, analysis_left, type = "vert")
+
+#connect right boxes
+connectGrob(allocated_right, followup_right, type = "vert")
+connectGrob(followup_right, analysis_right, type = "vert")
+
+
+#print boxes onto grid spcace
+title
+enrollment
+vert
+excluded
+analysis_left
+analysis_right
+followup_left
+followup_right
+allocated_left
+allocated_right
+
+invisible(dev.off())
+
+knitr::include_graphics('Figures/Figure1.pdf')
+
+```
+
+**Intervention procedure**. Mothers assigned to the intervention group were shown a 10-minute animated film commissioned and developed by the study team to introduce them to the concept of mind-mindedness. The experimenter then modeled what the participant’s infant might be thinking or feeling (e.g., “I really like this toy”, “I’ve never been here before”), emphasizing the importance of ‘tuning in’ to the infant’s internal states. The mothers were asked to imagine what their infant might be thinking or feeling in various hypothetical situations, and indicated what they could say to show they understood the infant’s internal states. The experimenter then introduced the BabyMind$\copyright$ app (see below) and installed it on the mother’s smartphone. The experimenter demonstrated the different tabs and ensured that the mother knew how to use the app. Participants consented to being sent a gentle text reminder if they had not uploaded a post for a week, and to receiving a call if they had still not posted after a further 3 days. The procedure lasted around 20 minutes.
+
+The research team designed the BabyMind$\copyright$ app in conjunction with IC Mobile Lab and in consultation with parents and maternity professionals. The app contained four tabs: My Baby, Alerts, Info, and Journal. Users entered their infant’s date of birth, name, and gender, and uploaded a profile photograph in the My Baby tab. 
+
+Parents received daily alerts which provided brief research findings relating to infants’ psychological development via the Alerts tab. Alerts were programmed to contain the name of the user’s infant and were tailored to the age of the user’s infant in order to encourage mothers to appreciate their own infant’s cognitive, linguistic, or socio-emotional abilities; all alerts were stored within the tab for future reference. The user also received a weekly cartoon depicting an infant engaged in a common activity, with a caption that modeled what the infant might say if he or she could speak. The Alerts tab linked with the Info tab, which provided additional information relating to six areas of development: *Forming relationships, Learning about the world, Learning to talk, Tuning into a baby’s mind, Ideas for play*, and *How do we study babies?* The Alerts and Info tab were designed to support users to hold developmentally accurate expectations of their infants, and to provoke curiosity about their infants’ minds.
+
+Users received the daily alert “What’s on [Name’s] mind?” via the Journal tab to prompt them to reflect on what the infant might be thinking or feeling. The user could upload a statement, photograph, or video clip in response to the alert. The tab’s text options included a wide range of emojis, and parents were informed that they could add these to their posts or simply post the emoji without any text. No guidance was given on the type of material that the users should upload. The research team viewed the uploaded material via a secure server, evaluated whether or not the post was mind-related, and responded accordingly. Users then viewed the research team’s response in the ‘Journal’ tab. This response was the end of the process; the app was designed to prevent extended interaction between the user and the research team in order to avoid introducing additional variance in the amount of feedback provided. 
+
+**Control procedure.** Mothers watched a 10-minute animated film on general infant development in the first year of life that did not cover mind-mindedness. The experimenter then asked the mother (a) whether they had noticed their baby doing any of the things from the film, (b) what changes they had noticed in their baby since birth, and (c) how they kept track of their baby’s development. The experimenter then introduced the control app. The app that was selected was WebMD$\copyright$, which is freely available via the App Store. We chose this app because it was very similar to BabyMind$\copyright$ in all ways apart from the prompts specifically to reflect on the infant’s internal states. The control app had a Settings tab where the mother entered their infant’s profile information. The Home tab delivered daily tips and weekly features targeted to the age of the user’s infant. The Baby 101 tab provided information on infant health, growth, and developmental milestones, as well as tips on effective parenting. The Journal tab allowed the mother to chart their infant’s development by uploading photographs and comments, and mothers could also record how much their infants were feeding, sleeping, and growing. Mothers were instructed to use the app as much as possible over the following 6 months. The procedure lasted around 20 minutes.
+
+## Study Design and Data Analysis 
+
+The study was registered as a clinical trial with the ISRCTN Registry (ID omitted for blind review), with the two mind-mindedness indices (appropriate and non-attuned mind-related comments) stipulated as the primary outcome measures. A statistical analysis plan was not pre-registered for this study. The study was conducted in alignment with the CONSORT statement for randomized trials of nonpharmacologic treatments [@Boutron2017]. As well as adopting this gold standard design, we used an active control condition (see above). A power calculation indicated that `r round(pwr1$n)` participants per group were required to detect a medium-size effect with `r pwr1$power` power and $\alpha$ = `r pwr1$sig.level`. The trial used a superiority design, based on the assumption that participants who received the intervention would be superior with regard to mind-mindedness compared with those who received the active control.
+
+Statistical analysis was carried out using Stata version 17.0. Estimates of treatment effect are presented alongside 95% confidence intervals (CIs) and *p* values. Statistical significance testing was carried out at the 5% level.
+
+# Results
+
+## Descriptive Statistics and Preliminary Analyses
+
+PRF data were available for `r sum(table(data$pdi_group))` participants. Administration instructions for the PDI-R2-S state that the infant must not be present during the interview; missing data were due to the interview being terminated because of infants needing attention. Temperament data were available for `r sum(table(data$temperament))` infants; missing data were due to termination of the assessment because of high infant distress, the requisite testing equipment not being available, or the mother not following the protocol instructions. At follow-up (age 12 months), data were available for `r sum(table(data$napercent12))` mothers on the primary outcomes (appropriate and non-attuned mind-related comments), with 8 intervention group and 4 control group dyads lost to the study between baseline and follow up (see Figure \@ref(fig:figure1)). No harms were reported by intervention or control group. Feedback was sought on the interventions at follow up, and while occasional technical difficulties were reported, no distress or adverse events were reported.
+
+Table \@ref(tab:Table1) shows the descriptive statistics for all variables as a function of whether participants received the BabyMind$\copyright$ or control app. In line with advice on analyses relating to randomized controlled trials [e.g., @Boer2015], formal statistical testing of differences between the groups at baseline was not carried out.
+
+``` {r Table1}
+
+table1data <- data.frame(matrix(0,nrow=11,ncol=3))
+colnames(table1data) <- c(' ', 'Mean (SD) Range', 'Mean (SD) Range')
+table1data[,1] <- c(' ','Maternal age in years', 'Infant age in weeks', 'Maternal education', 'HADS', 'Self-esteem', 'Perceived social support', 'Infant temperament', 'PRF', 'AMRC at 6 months (%)', 'NAMRC at 6 months (%)')
+
+table1data[1,] <- ' '
+
+meanlist <- by(data$matage,data$treatmentpn,mean,na.rm=TRUE)
+sdlist <- by(data$matage,data$treatmentpn,sd,na.rm=TRUE)
+minlist <- by(data$matage,data$treatmentpn,min,na.rm=TRUE)
+maxlist <- by(data$matage,data$treatmentpn,max,na.rm=TRUE)
+table1data[2,2:3] <- paste0(round(meanlist[c(2,1)],digits=2),' (',round(sdlist[c(2,1)],digits=2),') ',minlist[2:1],'–',maxlist[2:1])
+
+meanlist <- by(data$baby_age_weeks,data$treatmentpn,mean,na.rm=TRUE)
+sdlist <- by(data$baby_age_weeks,data$treatmentpn,sd,na.rm=TRUE)
+minlist <- by(data$baby_age_weeks,data$treatmentpn,min,na.rm=TRUE)
+maxlist <- by(data$baby_age_weeks,data$treatmentpn,max,na.rm=TRUE)
+table1data[3,2:3] <- paste0(round(meanlist[c(2,1)],digits=2),' (',round(sdlist[c(2,1)],digits=2),') ',minlist[2:1],'–',maxlist[2:1])
+
+meanlist <- by(data$matedu_phase2,data$treatmentpn,mean,na.rm=TRUE)
+sdlist <- by(data$matedu_phase2,data$treatmentpn,sd,na.rm=TRUE)
+minlist <- by(data$matedu_phase2,data$treatmentpn,min,na.rm=TRUE)
+maxlist <- by(data$matedu_phase2,data$treatmentpn,max,na.rm=TRUE)
+table1data[4,2:3] <- paste0(round(meanlist[c(2,1)],digits=2),' (',round(sdlist[c(2,1)],digits=2),') ',minlist[2:1],'–',maxlist[2:1])
+
+meanlist <- by(data$hadstotal_phase2,data$treatmentpn,mean,na.rm=TRUE)
+sdlist <- by(data$hadstotal_phase2,data$treatmentpn,sd,na.rm=TRUE)
+minlist <- by(data$hadstotal_phase2,data$treatmentpn,min,na.rm=TRUE)
+maxlist <- by(data$hadstotal_phase2,data$treatmentpn,max,na.rm=TRUE)
+table1data[5,2:3] <- paste0(round(meanlist[c(2,1)],digits=2),' (',round(sdlist[c(2,1)],digits=2),') ',minlist[2:1],'–',maxlist[2:1])
+
+meanlist <- by(data$rosenberg_phase2,data$treatmentpn,mean,na.rm=TRUE)
+sdlist <- by(data$rosenberg_phase2,data$treatmentpn,sd,na.rm=TRUE)
+minlist <- by(data$rosenberg_phase2,data$treatmentpn,min,na.rm=TRUE)
+maxlist <- by(data$rosenberg_phase2,data$treatmentpn,max,na.rm=TRUE)
+table1data[6,2:3] <- paste0(round(meanlist[c(2,1)],digits=2),' (',round(sdlist[c(2,1)],digits=2),') ',minlist[2:1],'–',maxlist[2:1])
+
+meanlist <- by(data$socsupport_phase2,data$treatmentpn,mean,na.rm=TRUE)
+sdlist <- by(data$socsupport_phase2,data$treatmentpn,sd,na.rm=TRUE)
+minlist <- by(data$socsupport_phase2,data$treatmentpn,min,na.rm=TRUE)
+maxlist <- by(data$socsupport_phase2,data$treatmentpn,max,na.rm=TRUE)
+table1data[7,2:3] <- paste0(round(meanlist[c(2,1)],digits=2),' (',round(sdlist[c(2,1)],digits=2),') ',minlist[2:1],'–',maxlist[2:1])
+
+meanlist <- by(data$temperament,data$treatmentpn,mean,na.rm=TRUE)
+sdlist <- by(data$temperament,data$treatmentpn,sd,na.rm=TRUE)
+minlist <- by(data$temperament,data$treatmentpn,min,na.rm=TRUE)
+maxlist <- by(data$temperament,data$treatmentpn,max,na.rm=TRUE)
+table1data[8,2:3] <- paste0(round(meanlist[c(2,1)],digits=2),' (',round(sdlist[c(2,1)],digits=2),') ',minlist[2:1],'–',round(maxlist[2:1],digits=2))
+
+meanlist <- by(data$pdirffinal,data$treatmentpn,mean,na.rm=TRUE)
+sdlist <- by(data$pdirffinal,data$treatmentpn,sd,na.rm=TRUE)
+minlist <- by(data$pdirffinal,data$treatmentpn,min,na.rm=TRUE)
+maxlist <- by(data$pdirffinal,data$treatmentpn,max,na.rm=TRUE)
+table1data[9,2:3] <- paste0(round(meanlist[c(2,1)],digits=2),' (',round(sdlist[c(2,1)],digits=2),') ',minlist[2:1],'–',maxlist[2:1])
+
+meanlist <- by(data$apppercent6,data$treatmentpn,mean,na.rm=TRUE)
+sdlist <- by(data$apppercent6,data$treatmentpn,sd,na.rm=TRUE)
+minlist <- by(data$apppercent6,data$treatmentpn,min,na.rm=TRUE)
+maxlist <- by(data$apppercent6,data$treatmentpn,max,na.rm=TRUE)
+table1data[10,2:3] <- paste0(round(meanlist[c(2,1)],digits=2),' (',round(sdlist[c(2,1)],digits=2),') ',minlist[2:1],'–',round(maxlist[2:1],digits=2))
+
+meanlist <- by(data$napercent6,data$treatmentpn,mean,na.rm=TRUE)
+sdlist <- by(data$napercent6,data$treatmentpn,sd,na.rm=TRUE)
+minlist <- by(data$napercent6,data$treatmentpn,min,na.rm=TRUE)
+maxlist <- by(data$napercent6,data$treatmentpn,max,na.rm=TRUE)
+table1data[11,2:3] <- paste0(round(meanlist[c(2,1)],digits=2),' (',round(sdlist[c(2,1)],digits=2),') ',minlist[2:1],'–',round(maxlist[2:1],digits=2))
+
+
+knitr::kable(table1data, align='lll', booktabs = TRUE, caption = 'Descriptive Statistics for All Variables as a Function of Group') %>%
+  row_spec(0:1, align = "c") %>%
+  kableExtra::add_header_above(c("", "BabyMind©", "Control")) %>%
+  footnote('Note: HADS = Hospital Anxiety and Depression Scale; PRF = Parental Reflective Functioning; AMRC = appropriate mind-related comments; NAMRC = non-attuned mind-related comments.',threeparttable=T,general_title='')
+
+
+```
+
+Table \@ref(tab:Table2) presents the usage data for the intervention and control groups. Adherence to the protocol was defined as using the app a few times a week or every day. As shown in Table \@ref(tab:Table1), more mothers in the intervention group adhered to the protocol compared with their control group counterparts.
+
+``` {r Table2}
+
+table2data <- data.frame(matrix(0,nrow=6,ncol=3))
+table2data[,1] <- c(' ',' ','Rarely or never','A few times a month', 'A few times a week','Every day')
+table2data[1,] <- c('','BabyMind©', 'Control')
+table2data[2,] <- c('','Number (%)', 'Number (%)')
+
+temp1 <- as.numeric(unlist(table2out)[5:8])
+temp2 <- round(100*temp1/sum(temp1),digits=1)
+table2data[3:6,2] <- paste0(temp1, ' (',temp2,')')
+temp1 <- as.numeric(unlist(table2out)[1:4])
+temp2 <- round(100*temp1/sum(temp1),digits=1)
+table2data[3:6,3] <- paste0(temp1, ' (',temp2,')')
+
+knitr::kable(table2data, booktabs=T, col.names=NULL, caption='Self-Reported App Usage as a Function of Group', align='lll') %>%
+  row_spec(0:1, align = "c") %>%
+  row_spec(2,hline_after=T)
+
+```
+
+``` {r mmcor}
+
+mmcor <- cor.test(data$apppercent12,data$napercent12)
+
+```
+
+Table \@ref(tab:Table3) shows the correlation matrix for all study variables at baseline. As shown in Table \@ref(tab:Table3), scores for the two mind-mindedness indices were unrelated to the demographic and maternal mental health variables, apart from the small-effect negative correlation between non-attuned mind-related comments and HADS scores. These findings replicate those in the extant literature [e.g., @Meins2011]. Replicating previous null findings [e.g., @Meins2012], scores for appropriate and non-attuned mind-related comments were unrelated at baseline (see Table \@ref(tab:Table3)); the two mind-mindedness indices were also unrelated at age 12 months, *r*(`r mmcor$parameter`) = `r round(mmcor$estimate,digits=2)`, *p* = `r p_format(mmcor$p.value,leading.zero=FALSE,digits=3)`.
+
+``` {r Table3}
+
+dataforcor <- data[,c(10,11,8,17,15,16,18,3,13,14)]
+
+table3data <- data.frame(matrix(0,nrow=10,ncol=10))
+colnames(table3data) <- c(' ',1:9)
+table3data[,1] <- c('1. Maternal age','2. Infant age','3. Maternal education','4. HADS','5. Self-esteem','6. Perceived social support','7. Infant temperament','8. PRF','9. AMRC','10. NAMRC')
+
+for (cno in 1:9){
+  for (rno in cno:10){
+    testout <- cor.test(dataforcor[,rno],dataforcor[,cno])
+    table3data[rno,cno+1] <- round(testout$estimate,digits=2)
+    
+    if (testout$p.value<0.05 & testout$p.value>0.01){table3data[rno,cno+1] <- paste0(table3data[rno,cno+1],'*')}
+    if (testout$p.value<0.01 & testout$p.value>0.001){table3data[rno,cno+1] <- paste0(table3data[rno,cno+1],'**')}  
+    if (testout$p.value<0.001){table3data[rno,cno+1] <- paste0(table3data[rno,cno+1],'+')}    
+  }
+  table3data[cno,(1+cno):10] <- ' '
+}
+
+knitr::kable(table3data, caption='Bivariate Correlations between Variables at Baseline', align='lccccccccc', booktabs = T) %>%
+  add_footnote(c('*p < .05, **p < .01, +p < .001.', 'Note: HADS = Hospital Anxiety and Depression Scale; PRF = Parental Reflective Functioning; AMRC = appropriate mind-related comments; NAMRC = non-attuned mind-related comments.'),notation='none')
+
+```
+
+## Evaluating the Efficacy of the BabyMind$\copyright$ App
+
+Scores for appropriate and non-attuned mind-related comments at age 12 months are shown in Table \@ref(tab:Table4). The primary outcomes of percentage of appropriate mind-related comments and percentage of non-attuned mind-related comments were each analyzed using two different methods. The unadjusted mean difference between treatment groups was estimated using a *t* test, and an adjusted mean difference was estimated using linear regression, adjusting for PRF, baseline percentage of appropriate mind-related comments, and baseline percentage of non-attuned mind-related comments as fixed effects. There were 27 participants (Intervention 14; Control 13) with primary outcome data who were excluded from the adjusted analyses due to not providing data on PRF at baseline. As shown in Table \@ref(tab:Table4), the unadjusted and adjusted mean group differences were significant for appropriate mind-related comments; adjusted mean group differences were also significant for non-attuned mind-related comments. Compared with their control group counterparts, intervention group mothers scored significantly higher for appropriate mind-related comments and significantly lower for non-attuned mind-related comments at age 12 months. 
+
+``` {r Table4}
+
+table4data <- data.frame(matrix(0,nrow=5,ncol=9))
+table4data[1,] <- c('','BabyMind©', 'Control', 'Unadjusted mean','Unadjusted','p value','Adjusted','Adjusted','p value')
+table4data[2,] <- c(' ','Mean (SD)','Mean (SD)','mean difference',"Cohen's d",' ','mean difference',"Cohen's d",' ')
+table4data[3,] <- c(' ',' ',' ','(95% CI)'," ",' ','(95% CI)'," ",' ')
+table4data[4:5,1] <- c('AMRC','NAMRC')
+
+table4data[4,2] <- paste0(round(table4t1$estimate[2],digits=2), ' (',round(table4SD1[2],digits=2),')')
+table4data[4,3] <- paste0(round(table4t1$estimate[1],digits=2), ' (',round(table4SD1[1],digits=2),')')
+
+table4data[4,4] <- paste0(round(table4t1$estimate[2]-table4t1$estimate[1],digits=2), ' (',round(-1*table4t1$conf.int[2],digits=2),', ',round(-1*table4t1$conf.int[1],digits=2),')')
+
+table4data[4,5] <- p_format(abs(tab4ES1$d),leading.zero=FALSE)
+
+table4data[4,6] <- p_format(table4t1$p.value,leading.zero=FALSE,digits=1)
+
+lr7test <- summary(linreg7_adjust)
+table4data[4,7] <- paste0(round(linreg1$coefficients[2],digits=2), ' (',round(CIlr1[2,1],digits=2),', ',round(CIlr1[2,2],digits=2),')')
+
+table4data[4,8] <- p_format(est_stan1,leading.zero=FALSE)
+
+table4data[4,9] <- p_format(summary(linreg1)$coefficients[2,4],leading.zero=FALSE,digits=1,accuracy=0.001)
+
+table4data[5,2] <- paste0(round(table4t2$estimate[2],digits=2), ' (',round(table4SD2[2],digits=2),')')
+table4data[5,3] <- paste0(round(table4t2$estimate[1],digits=2), ' (',round(table4SD2[1],digits=2),')')
+
+table4data[5,4] <- paste0(round(table4t2$estimate[2]-table4t2$estimate[1],digits=2), ' (',round(-1*table4t2$conf.int[2],digits=2),', ',round(-1*table4t2$conf.int[1],digits=2),')')
+
+table4data[5,5] <- p_format(abs(tab4ES2$d),leading.zero=FALSE)
+
+table4data[5,6] <- p_format(table4t2$p.value,leading.zero=FALSE,digits=2)
+
+lr9test <- summary(linreg9_adjust)
+table4data[5,7] <- paste0(round(linreg2$coefficients[2],digits=2), ' (',round(CIlr2[2,1],digits=2),', ',round(CIlr2[2,2],digits=2),')')
+
+table4data[5,8] <- p_format(abs(est_stan2),leading.zero=FALSE)
+
+table4data[5,9] <- p_format(summary(linreg2)$coefficients[2,4],leading.zero=FALSE,digits=1,accuracy=0.001)
+
+knitr::kable(table4data, booktabs = T, col.names=NULL, caption='Results of the Analyses Testing the Efficacy of the BabyMind© App on the Primary Outcomes at Age 12 Months Follow-up', align='ccccccc') %>%
+  row_spec(3,hline_after=T) %>%
+  add_footnote('Note: AMRC = appropriate mind-related comments; NAMRC = non-attuned mind-related comments.',notation='none') %>%
+  kable_styling(font_size = 7.5)
+
+```
+
+The sensitivity of the primary outcome analyses to missing data was assessed. Missing values of baseline covariates were replaced with the mean value; missing data for the other variables was imputed using multiple imputation by chained equations. The imputation model for each primary outcome included the variables used in the adjusted primary analyses (PRF, baseline percentage of appropriate comments, baseline percentage of non-attuned comments, and treatment allocation), along with baseline variables thought to be predictive of missingness (maternal age, infant age, highest level of maternal education, number of children, HADS, self-esteem, perceived social support, and infant temperament). One hundred imputed datasets were generated. Each imputed dataset was analyzed using a *t* test, and the estimates obtained were combined using Rubin’s rules. Each imputed dataset was also analyzed using linear regression, adjusting for PRF, baseline percentage of appropriate comments, and baseline percentage of non-attuned comments as fixed effects, with estimates also combined using Rubin’s rules.
+
+The sensitivity analyses did not affect the interpretation of the results. The unadjusted mean difference obtained using multiple imputation by chained equations for appropriate mind-related comments was `r round(linreg7$coefficients[2], digits = 2)`, 95% CI: `r round(conflinreg7[2,1], digits = 2)` to `r round(conflinreg7[2,2], digits = 2)`, *p* = `r round(summary(linreg7)$coefficients[2,4], digits = 3)`, and the adjusted mean difference was `r round(linreg7_adjust$coefficients[2], digits = 2)`, 95% CI: `r round(conflinreg7adj[2,1], digits = 2)` to `r round(conflinreg7adj[2,2], digits = 2)`, *p* = `r round(summary(linreg7_adjust)$coefficients[2,4], digits = 3)`. For non-attuned mind-related comments, the unadjusted mean difference was `r round(linreg9$coefficients[2], digits = 2)`, 95% CI: `r round(conflinreg9[2,1], digits = 2)` to `r round(conflinreg9[2,2], digits = 2)`, *p* = `r round(summary(linreg9)$coefficients[2,4], digits = 3)`, and the adjusted mean difference was `r round(linreg9_adjust$coefficients[2], digits = 2)`, 95% CI: `r round(conflinreg9adj[2,1], digits = 2)` to `r round(conflinreg9adj[2,2], digits = 2)`, *p* = `r round(summary(linreg9_adjust)$coefficients[2,4], digits = 3)`.
+
+The change over time in the two mind-mindedness indices for the intervention and control groups is shown in Figures \@ref(fig:figure2) and \@ref(fig:figure3). In the intervention group, there was a significant increase in appropriate mind-related comments, *t*(`r round(ttestSG3$parameter[1], digits = 2)`) = `r round(ttestSG3$statistic[1], digits = 2)`, *p* = `r p_format(ttestSG3$p.value[1], digits = 2, leading.zero=FALSE)`, *d* = `r round(SG3d, digits = 2)`, 95% CI: `r round(SG3CI[1],digits=2)` to `r round(SG3CI[2],digits=2)`, and a significant decrease in non-attuned mind-related comments, *t*(`r round(ttestSG5$parameter[1], digits = 2)`) = `r round(ttestSG5$statistic[1], digits = 2)`, *p* = `r p_format(ttestSG5$p.value[1], digits = 2, accuracy=0.001, leading.zero=FALSE)`, *d* = `r round(SG5d, digits = 2)`, 95% CI: `r round(SG5CI[1],digits=2)` to `r round(SG5CI[2],digits=2)`. In the control group, both indices showed significant decreases over time: for appropriate mind-related comments *t*(`r round(ttestSG4$parameter[1], digits = 2)`) = `r round(ttestSG4$statistic[1], digits = 2)`, *p* = `r p_format(ttestSG4$p.value[1], digits = 1, leading.zero=FALSE)`, *d* = `r round(SG4d, digits = 2)`, 95% CI: `r round(SG4CI[1],digits=2)` to `r round(SG4CI[2],digits=2)`; for non-attuned comments, *t*(`r round(ttestSG6$parameter[1], digits = 2)`) = `r round(ttestSG6$statistic[1], digits = 2)`, *p* = `r p_format(ttestSG6$p.value[1], digits = 2, leading.zero=FALSE)`, *d* = `r round(SG6d, digits = 2)`, 95% CI: `r round(SG6CI[1],digits=2)` to `r round(SG6CI[2],digits=2)`.
+
+
+```{r figure2, fig.align='center', out.width="70%",fig.cap='Mean value of the percentage of appropriate mind-related comments at the 6-month (baseline) and 12-month phases as a function of group. The error bars represent 95\\% confidence intervals.', echo=FALSE}
+
+means1 <- by(data$apppercent6,data$treatmentpn,mean,na.rm=TRUE)
+CI1 <- by(data$apppercent6,data$treatmentpn,sd,na.rm=TRUE)/sqrt(table(data$treatmentpn))*1.96
+
+means2 <- by(data$apppercent12,data$treatmentpn,mean,na.rm=TRUE)
+CI2 <- by(data$apppercent12,data$treatmentpn,sd,na.rm=TRUE)/sqrt(table(data$treatmentpn))*1.96
+
+pdf("Figures/Figure2.pdf", bg="transparent", height = 6, width = 7)
+    
+  plotlims <- c(-0.2,1.2,0,12)  
+  ticklocsx <- c(0,1)    # locations of tick marks on x axis
+  ticklocsy <- seq(0,12,1)    # locations of tick marks on y axis
+  ticklabelsx <- c('6 month phase (baseline)','12 month phase') 
+  ticklabelsy <- ticklocsy    # set labels for y ticks
+  
+  plot(x=NULL,y=NULL,axes=FALSE, ann=FALSE, xlim=plotlims[1:2], ylim=plotlims[3:4]) 
+  
+  for (n in 1:13){lines(c(-0.5,1.5),n-c(1,1),lwd=2,col='lightgrey')}
+  
+  axis(1, at=ticklocsx, tck=0.01, lab=F, lwd=2)     # plot tick marks (no labels)
+  axis(2, at=ticklocsy, tck=0.01, lab=F, lwd=2)
+  mtext(text = ticklabelsx, side = 1, at=ticklocsx)     # add the tick labels
+  mtext(text = ticklabelsy, side = 2, at=ticklocsy, line=0.2, las=1)
+  title(xlab="Time point", col.lab=rgb(0,0,0), line=1.2, cex.lab=1.5)
+  title(ylab="Percentage of appropriate mind-related comments", col.lab=rgb(0,0,0), line=1.5, cex.lab=1.1)
+  box(lwd=2)      # draw a box around the graph
+
+
+  arrows(c(-0.02,0.98),c(means1[1],means2[1]),x1=c(-0.02,0.98),y1=c(means1[1]+CI1[1],means2[1]+CI2[1]),length=0.025, angle=90, lty=1,lwd=2)
+  arrows(c(0.02,1.02),c(means1[2],means2[2]),x1=c(0.02,1.02),y1=c(means1[2]+CI1[2],means2[2]+CI2[2]),length=0.025, angle=90, lty=2,lwd=2)
+  arrows(c(-0.02,0.98),c(means1[1],means2[1]),x1=c(-0.02,0.98),y1=c(means1[1]-CI1[1],means2[1]-CI2[1]),length=0.025, angle=90, lty=1,lwd=2)
+  arrows(c(0.02,1.02),c(means1[2],means2[2]),x1=c(0.02,1.02),y1=c(means1[2]-CI1[2],means2[2]-CI2[2]),length=0.025, angle=90, lty=2,lwd=2)
+  
+  lines(c(-0.02,0.98),c(means1[1],means2[1]),lty=1,lwd=2)
+  lines(c(0.02,1.02),c(means1[2],means2[2]),lty=2,lwd=2)
+   
+  points(c(-0.02,0.98),c(means1[1],means2[1]),pch=16,cex=2)
+  points(c(0.02,1.02),c(means1[2],means2[2]),pch=18,cex=2.5)
+  
+  legend(0.75,12.1,c('Control','BabyMind'),pt.cex=c(2,2.5),pch=c(16,18),lwd=2,lty=c(1,2),box.col='white',cex=1.25,bg='white')
+  
+invisible(dev.off())
+
+knitr::include_graphics('Figures/Figure2.pdf')
+  
+```
+
+```{r figure3, fig.align='center', out.width="70%",fig.cap='Mean value of the percentage of non-attuned mind-related comments at the 6-month (baseline) and 12-month phases as a function of group. The error bars represent 95\\% confidence intervals.', echo=FALSE}
+
+means1 <- by(data$napercent6,data$treatmentpn,mean,na.rm=TRUE)
+CI1 <- by(data$napercent6,data$treatmentpn,sd,na.rm=TRUE)/sqrt(table(data$treatmentpn))*1.96
+
+means2 <- by(data$napercent12,data$treatmentpn,mean,na.rm=TRUE)
+CI2 <- by(data$napercent12,data$treatmentpn,sd,na.rm=TRUE)/sqrt(table(data$treatmentpn))*1.96
+
+pdf("Figures/Figure3.pdf", bg="transparent", height = 6, width = 7)
+    
+  plotlims <- c(-0.2,1.2,0,9)  
+  ticklocsx <- c(0,1)    # locations of tick marks on x axis
+  ticklocsy <- seq(0,9,1)    # locations of tick marks on y axis
+  ticklabelsx <- c('6 month phase (baseline)','12 month phase') 
+  ticklabelsy <- ticklocsy    # set labels for y ticks
+  
+  plot(x=NULL,y=NULL,axes=FALSE, ann=FALSE, xlim=plotlims[1:2], ylim=plotlims[3:4]) 
+  
+  for (n in 1:10){lines(c(-0.5,1.5),n-c(1,1),lwd=2,col='lightgrey')}
+  
+  axis(1, at=ticklocsx, tck=0.01, lab=F, lwd=2)     # plot tick marks (no labels)
+  axis(2, at=ticklocsy, tck=0.01, lab=F, lwd=2)
+  mtext(text = ticklabelsx, side = 1, at=ticklocsx)     # add the tick labels
+  mtext(text = ticklabelsy, side = 2, at=ticklocsy, line=0.2, las=1)
+  title(xlab="Time point", col.lab=rgb(0,0,0), line=1.2, cex.lab=1.5)
+  title(ylab="Percentage of non-attuned mind-related comments", col.lab=rgb(0,0,0), line=1.5, cex.lab=1.1)
+  box(lwd=2)      # draw a box around the graph
+
+
+  arrows(c(-0.02,0.98),c(means1[1],means2[1]),x1=c(-0.02,0.98),y1=c(means1[1]+CI1[1],means2[1]+CI2[1]),length=0.025, angle=90, lty=1,lwd=2)
+  arrows(c(0.02,1.02),c(means1[2],means2[2]),x1=c(0.02,1.02),y1=c(means1[2]+CI1[2],means2[2]+CI2[2]),length=0.025, angle=90, lty=2,lwd=2)
+  arrows(c(-0.02,0.98),c(means1[1],means2[1]),x1=c(-0.02,0.98),y1=c(means1[1]-CI1[1],means2[1]-CI2[1]),length=0.025, angle=90, lty=1,lwd=2)
+  arrows(c(0.02,1.02),c(means1[2],means2[2]),x1=c(0.02,1.02),y1=c(means1[2]-CI1[2],means2[2]-CI2[2]),length=0.025, angle=90, lty=2,lwd=2)
+  
+  lines(c(-0.02,0.98),c(means1[1],means2[1]),lty=1,lwd=2)
+  lines(c(0.02,1.02),c(means1[2],means2[2]),lty=2,lwd=2)
+   
+  points(c(-0.02,0.98),c(means1[1],means2[1]),pch=16,cex=2)
+  points(c(0.02,1.02),c(means1[2],means2[2]),pch=18,cex=2.5)
+  
+  legend(0.75,9.1,c('Control','BabyMind'),pt.cex=c(2,2.5),pch=c(16,18),lwd=2,lty=c(1,2),box.col='white',cex=1.25,bg='white')
+  
+invisible(dev.off())
+
+knitr::include_graphics('Figures/Figure3.pdf')
+  
+```
+
+Finally, a complier-average-causal-effect (CACE) analysis was carried out in order to estimate the treatment effect for those participants who would adhere to the BabyMind$\copyright$ app intervention if offered it. The CACE analysis was carried out using a two-stage least squares instrumental variable regression model. The instrumental variable was treatment allocation, with adherence being the endogenous variable, and PRF, baseline percentage of appropriate mind-related comments, and baseline percentage of non-attuned mind-related comments being the exogenous variables. A participant was classed as adhering to the intervention if they reported using the app either a few times a week or every day. The results of the CACE analysis estimated the treatment effect in adherers to be `r round(cace1$coefficients[2,1],digits=2)`, 95% CI: `r round(cace1CI[2,1],digits=2)` to `r round(cace1CI[2,2],digits=2)`, *p* `r p_format(cace1$coefficients[2,4],digits=3,leading.zero=FALSE,accuracy=0.001)`, for appropriate mind-related comments, and `r round(cace2$coefficients[2,1],digits=2)`, 95% CI: `r round(cace2CI[2,1],digits=2)` to `r round(cace2CI[2,2],digits=2)`, *p* = `r p_format(cace2$coefficients[2,4],digits=2,leading.zero=FALSE,accuracy=0.001)`, for non-attuned mind-related comments.
+
+To investigate whether PRF moderated the efficacy of the intervention, an exploratory analysis was carried out for each mind-mindedness index via the addition of an interaction term between PRF and treatment group to the linear regression equation described above. This model was then compared to the primary analysis model using a likelihood ratio test. There was no evidence of an interaction between treatment group and PRF for either appropriate mind-related comments (*p* = `r p_format(lrstat1,leading.zero=FALSE,digits=3)`) or non-attuned mind-related comments (*p* = `r p_format(lrstat2,leading.zero=FALSE,digits=3)`).
+
+## Relations between Mind-Mindedness and PRF 
+
+``` {r extracors}
+
+c1 <- cor.test(subgroup3$pdirffinal,subgroup3$apppercent12)
+c2 <- cor.test(subgroup3$pdirffinal,subgroup3$napercent12)
+c3 <- cor.test(subgroup4$pdirffinal,subgroup4$apppercent12)
+c4 <- cor.test(subgroup4$pdirffinal,subgroup4$napercent12)
+
+```
+
+The final aim of the present study was to investigate relations between PRF and mind-mindedness. As shown in Table \@ref(tab:Table3), PRF scores were not significantly related to mothers’ concurrent scores for appropriate or non-attuned mind-related comments, with small effects for both correlations. Relations between PRF scores and mind-mindedness at follow-up were investigated separately in the intervention and control groups. PRF was not correlated with mind-mindedness at 12 months in the intervention group: for appropriate mind-related comments, *r*(`r c1$parameter`) = `r round(c1$estimate,digits=2)`, *p* = `r p_format(c1$p.value,leading.zero=FALSE,digits=3)`, and non-attuned mind-related comments, *r*(`r c2$parameter`) = `r round(c2$estimate,digits=2)`, *p* = `r p_format(c2$p.value,leading.zero=FALSE,digits=3)`. PRF and mind-mindedness were similarly unrelated in the control group: for appropriate mind-related comments, *r*(`r c3$parameter`) = `r round(c3$estimate,digits=2)`, *p* = `r p_format(c3$p.value,leading.zero=FALSE,digits=3)`, and non-attuned mind-related comments, *r*(`r c4$parameter`) = `r round(c4$estimate,digits=2)`, *p* = `r p_format(c4$p.value,leading.zero=FALSE,digits=3)`. The effects sizes for all of these correlations were negligible to small.
+
+# Discussion
+
+The main aim of the study reported here was to investigate whether the BabyMind$\copyright$ smartphone app was effective in facilitating mind-mindedness when evaluated using a rigorous randomized controlled trial design. Adjusting for baseline PRF, appropriate mind-related comments, and non-attuned mind-related comments, mothers who had received the app scored more highly than their control group counterparts for appropriate mind-related comments at follow-up (age 12 months). The effect sizes for the impact of the intervention on both indices of mind-mindedness were medium to large (*d*s of `r p_format(est_stan1,leading.zero=FALSE)` and `r p_format(abs(est_stan2),leading.zero=FALSE)` for appropriate and non-attuned comments respectively). Given that mind-mindedness is characterized in terms of tending to comment appropriately on the infant’s internal states while avoiding comments that misinterpret the infant’s thoughts and feelings, these findings suggest that mind-mindedness can be successfully facilitated using the app. With regard to change over time, the results supported the hypothesized increase in appropriate mind-related comments specifically in the mothers who had received the BabyMind$\copyright$ app. In contrast, there was a decrease in appropriate comments from 6 to 12 months in mothers who had received the control app. In line with our proposal that non-attuned comments should decline over time because infants’ internal states become more transparent by the end of the first year of life, both groups showed a decrease in non-attuned comments. However, the decrease was more marked in the intervention group, suggesting that the app effected an additional decrease in non-attuned comments over and above the expected natural decline by age 12 months. 
+
+To evaluate whether missing data had influenced the results of the trial, sensitivity analyses were conducted using multiple imputation, with the imputation model additionally including the demographic and mental health control variables, and infant temperament. The sensitivity analyses indicated that the BabyMind$\copyright$ app was more effective than the active control in relation to both appropriate and non-attuned comments when missing data were taken into account. We also conducted a formal analysis to establish the treatment effect of the BabyMind$\copyright$ app specifically in participants who would adhere to the intervention if offered it. This analysis indicated a significant treatment effect in adherers resulting in higher levels of appropriate mind-related comments and lower levels of non-attuned comments.
+
+Finally, we explored whether mothers’ PRF at baseline moderated the efficacy of the BabyMind$\copyright$ app in facilitating mind-mindedness. The analyses indicated that PRF did not moderate the app’s efficacy in relation to either appropriate or non-attuned mind-related comments; including the interaction term between PRF and treatment group did not result in significant improvements to the models. These findings indicate that caregivers’ tendency to show high levels of reflective functioning when discussing their child, themselves as parents, and the parent–child relationship during an interview does not make them more receptive to an intervention that aims to facilitate their engagement with and reflection on their infants’ thoughts and feelings.
+
+Bakermans-Kranenburg, van Ijzendoorn, and Juffer's [-@Bakermans2003] meta-analysis provides useful data for gauging the effectiveness of our intervention in the broader context of parenting interventions. This meta-analysis investigated the effect of interventions that focused (a) specifically on facilitating caregiver sensitivity, (b) provided caregivers with social support and practical advice, (c) facilitated caregivers’ construction of more optimal representations of themselves in the caregiver–child relationship, or (d) involved a combination of these approaches (e.g., sensitivity and support). Interventions that focused on sensitivity only were reported to be more effective in facilitating sensitive caregiving (*d* = .45) than all of the other types of intervention (*d* = .27). The meta-analytic data also showed that interventions starting when infants were older (*d* = .44) were more effective than those beginning in the first 6 months of life (*d* = .28). Interestingly, the four interventions that did not involve personal contact were the most effective in facilitating sensitivity (*d* = .62). The effect sizes for the BabyMind$\copyright$ app intervention are notably higher than all of those reported in Bakermans-Kranenburg et al.'s [-@Bakermans2003] meta-analysis, except for the effect for those interventions which, like the app, were delivered remotely. These findings are intriguing, and suggest that effective intervention can be delivered without incurring the substantial costs associated with face-to-face procedures.
+
+It is also informative to compare the results of the present study with those of @Larkin2019, who evaluated the efficacy of the BabyMind$\copyright$ app in a separate sample of mothers who began using the app from birth and were followed up when their infants were age 6 months. In this previous study, the average mind-mindedness scores for mothers who had received the app intervention were 8.94% for appropriate mind-related comments and 0.77% for non-attuned comments. These figures can be compared with those of the intervention group in the present study at follow up: `r round(table4t1$estimate[2],digits=2)`% for appropriate comments and `r round(table4t2$estimate[2],digits=2)`% for non-attuned comments. Thus, while the present randomized controlled trial demonstrated that the app was effective in facilitating mind-mindedness, the mothers who had received the intervention in the present study appear to be less mind-minded, particularly in terms of appropriate mind-related comments, than those in Larkin et al.’s previous study. 
+
+One obvious difference between the two studies is the age at which mind-mindedness was assessed, which may account for the observed differences. Recall that the control group in the present study showed a decline in appropriate mind-related comments from 6 to 12 months, so it may be that under normal circumstances, mothers’ tendency to comment on their infants’ internal states decreases across the first year of life. The greater agency shown by 12-month-olds in terms of their linguistic and motor abilities may thus mean that mothers increasingly tend not to comment in either appropriate or non-attuned ways on what their infants are thinking or feeling because of the greater transparency of infants’ internal states. The BabyMind$\copyright$ app appeared to reverse this decline in appropriate mind-related comments between 6 and 12 months. 
+
+An alternative possibility for the difference across the two studies is that the app is more effective the earlier in the infant’s life it is administered, in contrast to Bakermans-Kranenburg et al.’s [-@Bakermans2003] findings on other parenting interventions. Young infants’ states are difficult to read, and by providing new mothers with psychoeducation and prompts to consider the world from the infant’s point of view at a time when they may be struggling to know how to approach caregiving, the app may be particularly effective in scaffolding mind-minded interaction. Future research should thus investigate whether early intervention with the BabyMind$\copyright$ app is more effective than later intervention. This research could also explore whether any such benefits of early intervention are more likely to be maintained over the course of infancy. 
+
+While our results provide robust evidence for the efficacy of the BabyMind$\copyright$ app in facilitating mind-mindedness, it is important to recognize the present study's limitations. Our participants varied in terms of SES and maternal age, but the vast majority were in a relationship with the baby’s father, and our sample was overwhelmingly White, reflecting the ethnicity of the locality from which they were recruited. There is long-standing research highlighting how parenting practices and views on parenting vary in parents from different cultural and ethnic backgrounds [e.g., @Choi2013], and research is beginning to address cultural and ethnic differences in parental mentalization. For example, @Dai2019 investigated mind-mindedness in Australian and Chinese mothers, and reported that Australian mothers made more appropriate mind-related comments and fewer non-attuned comments than their Chinese counterparts. Research on South Korean mothers has shown that they report high levels of certainty about their infants’ internal states [@Lee2021]. Investigating whether the BabyMind$\copyright$ app is equally effective in facilitating mind-mindedness in different cultural and ethnic groups is therefore a fruitful avenue for future research. It would also be interesting to investigate whether the app effectively facilitates mind-mindedness in fathers, single parents, and other caregivers. A further limitation of the present study is the fact that mothers in the intervention group were more likely to adhere to the protocol than were their control group counterparts. While this suggests that mothers found the BabyMind$\copyright$ app engaging, it does raise the possibility that the intervention was effective partly because mothers in the intervention group adhered more to the procedure.
+
+As well as investigating the efficacy of the BabyMind$\copyright$ app in more diverse populations, future research could investigate whether the app is effective in facilitating mind-mindedness across more varied types of interaction. Mind-mindedness is typically assessed from free-play caregiver–infant interactions rather than in more challenging contexts that may involve conflict between the caregiver and child or infant distress. An exception is a study by @Miller2019 who measured mind-mindedness during a snack observation, in which the parent had to feed the infant and wash their face and hands. It would be interesting to explore whether parents who have received the app intervention are more mind-minded during everyday caregiving activities such as feeding, changing, getting the child ready to go out, and so on. Knowing about the infant’s desires, interests, and preferences in these contexts may be critical in enabling the caregiver successfully to negotiate difficult situations.
+
+Previous research has demonstrated the efficacy of an individualized video-feedback intervention in facilitating mind-mindedness in mothers hospitalized due to severe mental illness [@Schacht2017]. Future research could explore whether the BabyMind$\copyright$ app is effective in facilitating mind-mindedness in mothers diagnosed with severe mental illness. It would also be useful to investigate the app’s efficacy in mothers in the community with less severe levels of perinatal mental illness. The fact that the app intervention involves regular interaction with mothers without the need for in-person appointments or home visits could make the app a useful clinical tool to supplement services offered to parents in the perinatal period.
+
+Mind-mindedness is known to predict a wide range of positive aspects of children’s development [@Aldrich2021; @McMahon2017]. It is therefore important for future research to establish whether administration of the BabyMind$\copyright$ app can effect improvement in core developmental outcomes. It may be that differences between our intervention and control groups will be observed with respect to aspects of child development that are known to be predicted by early mind-mindedness (e.g., behavioral regulation, theory of mind). We are currently following up this sample of families to explore this question. 
+
+As well trialling the efficacy of the BabyMind$\copyright$ app, the present study investigated how the two parental mentalization constructs—mind-mindedness and PRF—relate to one another. When the two constructs were assessed concurrently at age 6 months, PRF was unrelated to both indices of mind-mindedness (appropriate and non-attuned mind-related comments), with small effect sizes for these correlations. PRF at baseline was similarly unrelated to both appropriate and non-attuned comments at follow-up (age 12 months), and these null findings were observed in mothers who had received the BabyMind$\copyright$ intervention and those in the control group. These results replicate the null associations between mind-mindedness and PRF reported recently by @Dollberg2022. This lack of association between mind-mindedness and PRF is interesting, since it suggests that, although both constructs fall under the umbrella term *parental mentalization*, they are empirically distinct aspects of caregivers’ representations of their infants’ minds. As discussed in the Introduction, mind-mindedness is a construct at the interface between caregivers’ representations of their infants’ internal states and infant–caregiver behavior. While the ability to engage with and reflect on the infant’s thoughts and feelings—an ability likely to be equivalent to PRF—is necessary for being mind-minded, our results indicate that this capacity is not sufficient for the caregiver to demonstrate mind-mindedness when interacting with their infant. These null results mirror the pattern of findings reported for the relation between parents’ theory of mind abilities and their mind-mindedness in relation to their child [@Barreto2015; @Devine2019], and suggest that mind-mindedness cannot be reduced to caregivers’ underlying mentalizing abilities. 
+
+In summary, the results of the present study indicate that it is possible to facilitate mind-mindedness remotely via a smartphone app. Our use of a randomized controlled trial, involving an active control condition that was closely matched to the intervention, with sensitivity analyses accounting for missing data, provide assurance that our results are robust. The fact that BabyMind$\copyright$ delivers an effective intervention without the need for face-to-face sessions is noteworthy, particularly given problems in accessing services and support as a result of the COVID-19 pandemic. Future research should thus explore the feasibility of delivering BabyMind$\copyright$ as part of standard practice in maternity and early years services. Investigating whether BabyMind$\copyright$ is effective in facilitating mind-mindedness in more diverse groups of caregivers—and whether this intervention has a sustained positive impact on children’s development—are interesting avenues for future research.
+
+# References
+
