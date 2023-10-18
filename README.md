@@ -1,6 +1,6 @@
 These materials are a computationally reproducible version of the paper:
 
-Meins et al. (2023). A Smartphone App Effectively Facilitates Mothers’ Mind-Mindedness: A Randomized Controlled Trial.
+Larkin, Oostenbroek, Lee, Hayward, Fernandez, Wang, Mitchell, Li & Meins (2023). A Smartphone App Effectively Facilitates Mothers’ Mind-Mindedness: A Randomized Controlled Trial, *Child Development*, in press.
 
 The file manuscript.Rmd is an R markdown file that will perform all analyses and figure creation, and produce a pdf version of the manuscript.
 
